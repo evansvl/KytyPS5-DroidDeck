@@ -79,6 +79,20 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Install runtime libraries
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            libopengl0 \
+            libglx0 \
+            libgl1 \
+            libglvnd0
+
       - name: Download KytyPS5
         if: steps.existing.outputs.exists != 'true'
         env:
@@ -95,11 +109,17 @@ jobs:
             --output kyty-linux.tar.gz \
             "$ASSET_URL"
 
-          mkdir upstream
-          tar -xzf kyty-linux.tar.gz -C upstream
+          mkdir -p upstream
+
+          tar \
+            -xzf kyty-linux.tar.gz \
+            -C upstream
 
           test -f upstream/kyty_launcher
           test -f upstream/kyty_emulator
+
+          file upstream/kyty_launcher
+          file upstream/kyty_emulator
 
       - name: Create AppDir
         if: steps.existing.outputs.exists != 'true'
@@ -107,12 +127,39 @@ jobs:
         run: |
           set -euo pipefail
 
+          rm -rf AppDir
+
           mkdir -p AppDir/usr/lib/kytyps5
+          mkdir -p AppDir/usr/lib/kytyps5/lib
+
           cp -a upstream/. AppDir/usr/lib/kytyps5/
 
           chmod +x \
             AppDir/usr/lib/kytyps5/kyty_launcher \
             AppDir/usr/lib/kytyps5/kyty_emulator
+
+          copy_lib() {
+            local lib="$1"
+            local src
+
+            src="$(ldconfig -p | awk -v lib="$lib" '$1 == lib && $NF ~ /x86_64-linux-gnu/ {print $NF; exit}')"
+
+            if [[ -z "$src" ]]; then
+              src="/usr/lib/x86_64-linux-gnu/$lib"
+            fi
+
+            if [[ ! -e "$src" ]]; then
+              echo "Missing required library: $lib"
+              exit 1
+            fi
+
+            cp -aL "$src" "AppDir/usr/lib/kytyps5/lib/$lib"
+          }
+
+          copy_lib libOpenGL.so.0
+          copy_lib libGLdispatch.so.0
+          copy_lib libGLX.so.0
+          copy_lib libGL.so.1
 
           cat > AppDir/AppRun <<'EOF'
           #!/bin/bash
@@ -128,6 +175,15 @@ jobs:
           if [[ -d "$KYTY_DIR/plugins" ]]; then
             export QT_PLUGIN_PATH="$KYTY_DIR/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
           fi
+
+          if [[ -d "$KYTY_DIR/lib/plugins" ]]; then
+            export QT_PLUGIN_PATH="$KYTY_DIR/lib/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
+          fi
+
+          echo "KytyPS5 DroidDeck"
+          echo "Architecture: $(uname -m)"
+          echo "APPDIR: $APPDIR"
+          echo "KYTY_DIR: $KYTY_DIR"
 
           exec "$KYTY_DIR/kyty_launcher" "$@"
           EOF
@@ -157,6 +213,23 @@ jobs:
 
           ln -sf kytyps5.svg AppDir/.DirIcon
 
+      - name: Check bundled libraries
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ls -lah AppDir/usr/lib/kytyps5/lib/
+
+          file \
+            AppDir/usr/lib/kytyps5/lib/libOpenGL.so.0 \
+            AppDir/usr/lib/kytyps5/lib/libGLdispatch.so.0 \
+            AppDir/usr/lib/kytyps5/lib/libGLX.so.0 \
+            AppDir/usr/lib/kytyps5/lib/libGL.so.1
+
+          LD_LIBRARY_PATH="$PWD/AppDir/usr/lib/kytyps5:$PWD/AppDir/usr/lib/kytyps5/lib" \
+            ldd AppDir/usr/lib/kytyps5/kyty_launcher || true
+
       - name: Download appimagetool
         if: steps.existing.outputs.exists != 'true'
         shell: bash
@@ -167,6 +240,7 @@ jobs:
             --fail \
             --location \
             --retry 5 \
+            --retry-delay 3 \
             --output appimagetool-x86_64.AppImage \
             "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
 
@@ -186,6 +260,9 @@ jobs:
             "$OUTPUT_NAME"
 
           chmod +x "$OUTPUT_NAME"
+
+          ls -lh "$OUTPUT_NAME"
+          file "$OUTPUT_NAME"
 
       - name: Verify AppImage
         if: steps.existing.outputs.exists != 'true'
@@ -207,10 +284,16 @@ jobs:
           machine = struct.unpack("<H", data[18:20])[0]
 
           if machine != 62:
-              raise SystemExit(f"Expected x86_64, got ELF machine {machine}")
+              raise SystemExit(
+                  f"Expected x86_64 ELF machine 62, got {machine}"
+              )
 
           if data[8:11] != b"AI\x02":
-              raise SystemExit("Output is not AppImage Type 2")
+              raise SystemExit(
+                  f"Expected AppImage Type 2, got {data[8:11]!r}"
+              )
+
+          print("x86_64 AppImage Type 2: OK")
           PY
 
           sha256sum "$OUTPUT_NAME" | tee "$OUTPUT_NAME.sha256"
