@@ -19,7 +19,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "4"
+      PACKAGE_REV: "5"
 
     steps:
       - name: Checkout
@@ -31,32 +31,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          RELEASE_JSON="$(
-            curl \
-              --fail \
-              --silent \
-              --show-error \
-              --location \
-              "https://api.github.com/repos/$UPSTREAM_REPO/releases/latest"
-          )"
+          RELEASE_JSON="$(curl --fail --silent --show-error --location \
+            "https://api.github.com/repos/$UPSTREAM_REPO/releases/latest")"
 
           TAG="$(jq -r '.tag_name' <<< "$RELEASE_JSON")"
-
-          ASSET_URL="$(
-            jq -r '
-              .assets[]
-              | select(.name | test("Linux-x86_64\\.tar\\.gz$"))
-              | .browser_download_url
-            ' <<< "$RELEASE_JSON" | head -n 1
-          )"
-
-          ASSET_NAME="$(
-            jq -r '
-              .assets[]
-              | select(.name | test("Linux-x86_64\\.tar\\.gz$"))
-              | .name
-            ' <<< "$RELEASE_JSON" | head -n 1
-          )"
+          ASSET_URL="$(jq -r '.assets[] | select(.name | test("Linux-x86_64\\.tar\\.gz$")) | .browser_download_url' <<< "$RELEASE_JSON" | head -n 1)"
+          ASSET_NAME="$(jq -r '.assets[] | select(.name | test("Linux-x86_64\\.tar\\.gz$")) | .name' <<< "$RELEASE_JSON" | head -n 1)"
 
           test -n "$TAG"
           test "$TAG" != "null"
@@ -77,10 +57,7 @@ jobs:
           RELEASE_TAG: ${{ steps.upstream.outputs.release_tag }}
         shell: bash
         run: |
-          if gh release view "$RELEASE_TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            >/dev/null 2>&1
-          then
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -91,11 +68,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           sudo apt-get update
-
           sudo apt-get install -y \
             build-essential \
+            cmake \
+            ninja-build \
+            qt6-base-dev \
             libopengl0 \
             libglx0 \
             libgl1 \
@@ -108,26 +86,34 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          curl \
-            --fail \
-            --location \
-            --retry 5 \
-            --retry-delay 3 \
-            --output kyty-linux.tar.gz \
-            "$ASSET_URL"
+          curl --fail --location --retry 5 --retry-delay 3 \
+            --output kyty-linux.tar.gz "$ASSET_URL"
 
           mkdir -p upstream
-
-          tar \
-            -xzf kyty-linux.tar.gz \
-            -C upstream
+          tar -xzf kyty-linux.tar.gz -C upstream
 
           test -f upstream/kyty_launcher
           test -f upstream/kyty_emulator
 
           file upstream/kyty_launcher
           file upstream/kyty_emulator
+
+      - name: Build DroidDeck launcher
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cmake \
+            -S droiddeck-launcher \
+            -B build-droiddeck-launcher \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+          cmake --build build-droiddeck-launcher --parallel
+
+          test -x build-droiddeck-launcher/kyty_droiddeck_launcher
+          file build-droiddeck-launcher/kyty_droiddeck_launcher
 
       - name: Create AppDir
         if: steps.existing.outputs.exists != 'true'
@@ -136,13 +122,14 @@ jobs:
           set -euo pipefail
 
           rm -rf AppDir
-
-          mkdir -p AppDir/usr/lib/kytyps5
           mkdir -p AppDir/usr/lib/kytyps5/lib
 
           cp -a upstream/. AppDir/usr/lib/kytyps5/
+          cp -a build-droiddeck-launcher/kyty_droiddeck_launcher \
+            AppDir/usr/lib/kytyps5/kyty_droiddeck_launcher
 
           chmod +x \
+            AppDir/usr/lib/kytyps5/kyty_droiddeck_launcher \
             AppDir/usr/lib/kytyps5/kyty_launcher \
             AppDir/usr/lib/kytyps5/kyty_emulator
 
@@ -150,16 +137,7 @@ jobs:
             local lib="$1"
             local src
 
-            src="$(
-              ldconfig -p \
-              | awk -v lib="$lib" '
-                  $1 == lib && $NF ~ /x86_64-linux-gnu/ {
-                    print $NF
-                    exit
-                  }
-                '
-            )"
-
+            src="$(ldconfig -p | awk -v lib="$lib" '$1 == lib && $NF ~ /x86_64-linux-gnu/ {print $NF; exit}')"
             if [[ -z "$src" ]]; then
               src="/usr/lib/x86_64-linux-gnu/$lib"
             fi
@@ -169,9 +147,7 @@ jobs:
               exit 1
             fi
 
-            cp -aL \
-              "$src" \
-              "AppDir/usr/lib/kytyps5/lib/$lib"
+            cp -aL "$src" "AppDir/usr/lib/kytyps5/lib/$lib"
           }
 
           copy_lib libOpenGL.so.0
@@ -197,21 +173,14 @@ jobs:
             -o AppDir/usr/lib/kytyps5/lib/libqprocess-fork.so \
             qprocess-fork.c
 
-          file AppDir/usr/lib/kytyps5/lib/libqprocess-fork.so
-
-          nm -D AppDir/usr/lib/kytyps5/lib/libqprocess-fork.so \
-            | grep __interceptor_vfork
-
           cat > AppDir/AppRun <<'EOF'
           #!/bin/bash
-
           set -u
 
           APPDIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
           KYTY_DIR="$APPDIR/usr/lib/kytyps5"
 
-          cd "$KYTY_DIR" || exit 1
-
+          export KYTY_DIR
           export LD_LIBRARY_PATH="$KYTY_DIR:$KYTY_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           export LD_PRELOAD="$KYTY_DIR/lib/libqprocess-fork.so${LD_PRELOAD:+:$LD_PRELOAD}"
 
@@ -223,17 +192,6 @@ jobs:
             export QT_PLUGIN_PATH="$KYTY_DIR/lib/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
           fi
 
-          echo
-          echo "=========================================="
-          echo " KytyPS5 DroidDeck"
-          echo "=========================================="
-          echo "Architecture: $(uname -m)"
-          echo "APPDIR: $APPDIR"
-          echo "KYTY_DIR: $KYTY_DIR"
-          echo
-
-          echo "========== Android storage =========="
-
           PHONE_STORAGE="/storage/emulated/0"
           PHONE_DOWNLOADS="$PHONE_STORAGE/Download"
           PHONE_GAMES="$PHONE_STORAGE/KytyPS5"
@@ -241,123 +199,26 @@ jobs:
           mkdir -p /root 2>/dev/null || true
 
           if [[ -d "$PHONE_STORAGE" ]]; then
-            echo "Android internal storage detected:"
-            echo "$PHONE_STORAGE"
-
-            ln -sfn \
-              "$PHONE_STORAGE" \
-              /root/PhoneStorage \
-              2>/dev/null || true
+            ln -sfn "$PHONE_STORAGE" /root/PhoneStorage 2>/dev/null || true
 
             if [[ -d "$PHONE_DOWNLOADS" ]]; then
-              ln -sfn \
-                "$PHONE_DOWNLOADS" \
-                /root/Downloads \
-                2>/dev/null || true
+              ln -sfn "$PHONE_DOWNLOADS" /root/Downloads 2>/dev/null || true
             fi
 
             mkdir -p "$PHONE_GAMES" 2>/dev/null || true
 
             if [[ -d "$PHONE_GAMES" ]]; then
-              ln -sfn \
-                "$PHONE_GAMES" \
-                /root/Games \
-                2>/dev/null || true
-
+              ln -sfn "$PHONE_GAMES" /root/Games 2>/dev/null || true
               export KYTY_GAMES_DIR="$PHONE_GAMES"
-
-              echo
-              echo "Game folder:"
-              echo "$PHONE_GAMES"
-              echo
-              echo "Kyty shortcut:"
-              echo "/root/Games"
-            else
-              echo "Unable to create:"
-              echo "$PHONE_GAMES"
             fi
-          else
-            echo "WARNING:"
-            echo "/storage/emulated/0 is not available inside this DroidDeck session"
           fi
 
-          echo
-          echo "Root shortcuts:"
-          ls -lah /root/PhoneStorage /root/Downloads /root/Games 2>/dev/null || true
-          echo
+          echo "== KytyPS5 DroidDeck =="
+          echo "Kyty directory: $KYTY_DIR"
+          echo "Games directory: ${KYTY_GAMES_DIR:-unavailable}"
 
-          echo "========== qprocess fork shim =========="
-
-          file "$KYTY_DIR/lib/libqprocess-fork.so" || true
-
-          nm -D "$KYTY_DIR/lib/libqprocess-fork.so" \
-            | grep __interceptor_vfork || true
-
-          echo
-          echo "========== kyty_launcher =========="
-
-          file "$KYTY_DIR/kyty_launcher" || true
-          ldd "$KYTY_DIR/kyty_launcher" || true
-
-          echo
-          echo "========== kyty_emulator =========="
-
-          file "$KYTY_DIR/kyty_emulator" || true
-          ldd "$KYTY_DIR/kyty_emulator" || true
-
-          echo
-          echo "========== missing libraries =========="
-
-          (
-            ldd "$KYTY_DIR/kyty_launcher" || true
-            ldd "$KYTY_DIR/kyty_emulator" || true
-          ) | grep "not found" || echo "No missing libraries reported by ldd"
-
-          echo
-          echo "========== kyty_emulator direct test =========="
-
-          set +e
-
-          timeout 15s \
-            "$KYTY_DIR/kyty_emulator" \
-            > /tmp/kyty-emulator-test.log \
-            2>&1
-
-          EMULATOR_RC=$?
-
-          set -e
-
-          cat /tmp/kyty-emulator-test.log || true
-
-          echo
-          echo "kyty_emulator exit code: $EMULATOR_RC"
-
-          case "$EMULATOR_RC" in
-            0)
-              echo "kyty_emulator test exited normally"
-              ;;
-            124)
-              echo "kyty_emulator test timed out"
-              ;;
-            132)
-              echo "kyty_emulator received SIGILL"
-              ;;
-            134)
-              echo "kyty_emulator received SIGABRT"
-              ;;
-            137)
-              echo "kyty_emulator received SIGKILL"
-              ;;
-            139)
-              echo "kyty_emulator received SIGSEGV"
-              ;;
-          esac
-
-          echo
-          echo "========== starting launcher =========="
-          echo
-
-          exec "$KYTY_DIR/kyty_launcher" "$@"
+          cd "$KYTY_DIR" || exit 1
+          exec "$KYTY_DIR/kyty_droiddeck_launcher" "$@"
           EOF
 
           chmod +x AppDir/AppRun
@@ -366,8 +227,8 @@ jobs:
           [Desktop Entry]
           Type=Application
           Name=KytyPS5
-          Comment=PlayStation 5 translation layer for DroidDeck
-          Exec=kyty_launcher
+          Comment=PlayStation 5 emulator frontend for DroidDeck
+          Exec=kyty_droiddeck_launcher
           Icon=kytyps5
           Terminal=false
           Categories=Game;Emulator;
@@ -391,24 +252,21 @@ jobs:
         run: |
           set -euo pipefail
 
-          ls -lah AppDir/usr/lib/kytyps5/lib/
-
           file \
-            AppDir/usr/lib/kytyps5/lib/libOpenGL.so.0 \
-            AppDir/usr/lib/kytyps5/lib/libGLdispatch.so.0 \
-            AppDir/usr/lib/kytyps5/lib/libGLX.so.0 \
-            AppDir/usr/lib/kytyps5/lib/libGL.so.1 \
+            AppDir/usr/lib/kytyps5/kyty_droiddeck_launcher \
+            AppDir/usr/lib/kytyps5/kyty_launcher \
+            AppDir/usr/lib/kytyps5/kyty_emulator \
             AppDir/usr/lib/kytyps5/lib/libqprocess-fork.so
 
-          echo
-          echo "Launcher dependencies:"
+          echo "DroidDeck launcher dependencies:"
+          LD_LIBRARY_PATH="$PWD/AppDir/usr/lib/kytyps5:$PWD/AppDir/usr/lib/kytyps5/lib" \
+            ldd AppDir/usr/lib/kytyps5/kyty_droiddeck_launcher || true
 
+          echo "Kyty launcher dependencies:"
           LD_LIBRARY_PATH="$PWD/AppDir/usr/lib/kytyps5:$PWD/AppDir/usr/lib/kytyps5/lib" \
             ldd AppDir/usr/lib/kytyps5/kyty_launcher || true
 
-          echo
           echo "Emulator dependencies:"
-
           LD_LIBRARY_PATH="$PWD/AppDir/usr/lib/kytyps5:$PWD/AppDir/usr/lib/kytyps5/lib" \
             ldd AppDir/usr/lib/kytyps5/kyty_emulator || true
 
@@ -417,15 +275,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          curl \
-            --fail \
-            --location \
-            --retry 5 \
-            --retry-delay 3 \
+          curl --fail --location --retry 5 \
             --output appimagetool-x86_64.AppImage \
             "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage"
-
           chmod +x appimagetool-x86_64.AppImage
 
       - name: Build AppImage
@@ -433,16 +285,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           export ARCH=x86_64
-
           ./appimagetool-x86_64.AppImage \
             --appimage-extract-and-run \
             AppDir \
             "$OUTPUT_NAME"
-
           chmod +x "$OUTPUT_NAME"
-
           ls -lh "$OUTPUT_NAME"
           file "$OUTPUT_NAME"
 
@@ -464,22 +312,16 @@ jobs:
               raise SystemExit("Output is not ELF")
 
           machine = struct.unpack("<H", data[18:20])[0]
-
           if machine != 62:
-              raise SystemExit(
-                  f"Expected x86_64 ELF machine 62, got {machine}"
-              )
+              raise SystemExit(f"Expected x86_64 ELF machine 62, got {machine}")
 
           if data[8:11] != b"AI\x02":
-              raise SystemExit(
-                  f"Expected AppImage Type 2, got {data[8:11]!r}"
-              )
+              raise SystemExit(f"Expected AppImage Type 2, got {data[8:11]!r}")
 
           print("x86_64 AppImage Type 2: OK")
           PY
 
-          sha256sum "$OUTPUT_NAME" \
-            | tee "$OUTPUT_NAME.sha256"
+          sha256sum "$OUTPUT_NAME" | tee "$OUTPUT_NAME.sha256"
 
       - name: Upload artifact
         if: steps.existing.outputs.exists != 'true'
@@ -502,22 +344,20 @@ jobs:
         run: |
           set -euo pipefail
 
-          SHA256="$(
-            cut -d' ' -f1 "$OUTPUT_NAME.sha256"
-          )"
+          SHA256="$(cut -d' ' -f1 "$OUTPUT_NAME.sha256")"
 
           cat > release-notes.md <<EOF
           KytyPS5 x86_64 AppImage for DroidDeck/FEX.
+
+          Includes the custom KytyPS5 DroidDeck Launcher.
+
+          Game library:
+          /storage/emulated/0/KytyPS5
 
           Upstream: $UPSTREAM_REPO
           Upstream release: $UPSTREAM_TAG
           Upstream asset: $UPSTREAM_ASSET
           DroidDeck packaging revision: $PACKAGE_REV
-
-          Android storage shortcuts:
-          /root/PhoneStorage -> /storage/emulated/0
-          /root/Downloads -> /storage/emulated/0/Download
-          /root/Games -> /storage/emulated/0/KytyPS5
 
           SHA-256:
           $SHA256
