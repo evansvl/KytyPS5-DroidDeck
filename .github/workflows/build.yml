@@ -19,7 +19,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "3"
+      PACKAGE_REV: "4"
 
     steps:
       - name: Checkout
@@ -213,7 +213,6 @@ jobs:
           cd "$KYTY_DIR" || exit 1
 
           export LD_LIBRARY_PATH="$KYTY_DIR:$KYTY_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-
           export LD_PRELOAD="$KYTY_DIR/lib/libqprocess-fork.so${LD_PRELOAD:+:$LD_PRELOAD}"
 
           if [[ -d "$KYTY_DIR/plugins" ]]; then
@@ -231,8 +230,60 @@ jobs:
           echo "Architecture: $(uname -m)"
           echo "APPDIR: $APPDIR"
           echo "KYTY_DIR: $KYTY_DIR"
-          echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
-          echo "LD_PRELOAD: $LD_PRELOAD"
+          echo
+
+          echo "========== Android storage =========="
+
+          PHONE_STORAGE="/storage/emulated/0"
+          PHONE_DOWNLOADS="$PHONE_STORAGE/Download"
+          PHONE_GAMES="$PHONE_STORAGE/KytyPS5"
+
+          mkdir -p /root 2>/dev/null || true
+
+          if [[ -d "$PHONE_STORAGE" ]]; then
+            echo "Android internal storage detected:"
+            echo "$PHONE_STORAGE"
+
+            ln -sfn \
+              "$PHONE_STORAGE" \
+              /root/PhoneStorage \
+              2>/dev/null || true
+
+            if [[ -d "$PHONE_DOWNLOADS" ]]; then
+              ln -sfn \
+                "$PHONE_DOWNLOADS" \
+                /root/Downloads \
+                2>/dev/null || true
+            fi
+
+            mkdir -p "$PHONE_GAMES" 2>/dev/null || true
+
+            if [[ -d "$PHONE_GAMES" ]]; then
+              ln -sfn \
+                "$PHONE_GAMES" \
+                /root/Games \
+                2>/dev/null || true
+
+              export KYTY_GAMES_DIR="$PHONE_GAMES"
+
+              echo
+              echo "Game folder:"
+              echo "$PHONE_GAMES"
+              echo
+              echo "Kyty shortcut:"
+              echo "/root/Games"
+            else
+              echo "Unable to create:"
+              echo "$PHONE_GAMES"
+            fi
+          else
+            echo "WARNING:"
+            echo "/storage/emulated/0 is not available inside this DroidDeck session"
+          fi
+
+          echo
+          echo "Root shortcuts:"
+          ls -lah /root/PhoneStorage /root/Downloads /root/Games 2>/dev/null || true
           echo
 
           echo "========== qprocess fork shim =========="
@@ -315,7 +366,7 @@ jobs:
           [Desktop Entry]
           Type=Application
           Name=KytyPS5
-          Comment=PlayStation 5 translation layer
+          Comment=PlayStation 5 translation layer for DroidDeck
           Exec=kyty_launcher
           Icon=kytyps5
           Terminal=false
@@ -462,6 +513,11 @@ jobs:
           Upstream release: $UPSTREAM_TAG
           Upstream asset: $UPSTREAM_ASSET
           DroidDeck packaging revision: $PACKAGE_REV
+
+          Android storage shortcuts:
+          /root/PhoneStorage -> /storage/emulated/0
+          /root/Downloads -> /storage/emulated/0/Download
+          /root/Games -> /storage/emulated/0/KytyPS5
 
           SHA-256:
           $SHA256
