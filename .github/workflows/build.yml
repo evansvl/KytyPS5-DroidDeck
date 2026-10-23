@@ -22,7 +22,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "5"
+      PACKAGE_REV: "6"
 
     steps:
       - name: Checkout
