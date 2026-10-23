@@ -3,6 +3,7 @@
 #include <QComboBox>
 #include <QDir>
 #include <QFileInfo>
+#include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -14,16 +15,15 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QSizePolicy>
-#include <QSpacerItem>
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <filesystem>
 #include <string>
 #include <sys/types.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
 
@@ -67,7 +67,8 @@ static bool spawnDetached(const QString &program, const QStringList &arguments, 
     const pid_t pid = fork();
     if (pid < 0) {
         if (error) {
-            *error = QStringLiteral("fork() failed: %1").arg(QString::fromLocal8Bit(std::strerror(errno)));
+            *error = QStringLiteral("fork() failed: %1")
+                         .arg(QString::fromLocal8Bit(std::strerror(errno)));
         }
         return false;
     }
@@ -90,7 +91,7 @@ struct GameEntry {
 static QList<GameEntry> scanGames(const QString &root)
 {
     QList<GameEntry> result;
-    const fs::path base = fs::u8path(root.toStdString());
+    const fs::path base(root.toStdString());
     std::error_code ec;
 
     if (!fs::exists(base, ec)) {
@@ -120,7 +121,6 @@ static QList<GameEntry> scanGames(const QString &root)
             }
 
             result.push_back(game);
-            it.disable_recursion_pending();
         }
 
         it.increment(ec);
@@ -326,13 +326,15 @@ private:
         cover->setMinimumHeight(180);
         cover->setStyleSheet(QStringLiteral("background:#0d1015;border-radius:10px;"));
 
+        bool hasIcon = false;
         if (!game.icon.isEmpty()) {
             QPixmap pixmap(game.icon);
             if (!pixmap.isNull()) {
                 cover->setPixmap(pixmap.scaled(260, 180, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+                hasIcon = true;
             }
         }
-        if (cover->pixmap().isNull()) {
+        if (!hasIcon) {
             cover->setText(QStringLiteral("PS5"));
             cover->setStyleSheet(QStringLiteral("background:#0d1015;border-radius:10px;font-size:42px;font-weight:700;color:#536174;"));
         }
