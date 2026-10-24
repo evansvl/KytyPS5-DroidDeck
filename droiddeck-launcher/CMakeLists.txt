@@ -6,6 +6,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# The checked-in launcher stays easy to review, while this deterministic patch
+# reshapes it for DroidDeck's landscape virtual-controller safe area at build time.
+execute_process(
+    COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../patches/patch_droiddeck_safe_ui.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/ConsoleWindow.cpp
+    RESULT_VARIABLE DROIDDECK_UI_PATCH_RESULT
+)
+if(NOT DROIDDECK_UI_PATCH_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to apply DroidDeck safe-area UI patch")
+endif()
 
 add_executable(kyty_droiddeck_launcher
     main.cpp
