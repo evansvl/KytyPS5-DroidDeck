@@ -1,0 +1,40 @@
+name: Frontend smoke build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'droiddeck-launcher/**'
+      - 'patches/patch_droiddeck_safe_ui.py'
+      - '.github/workflows/frontend-smoke.yml'
+  workflow_dispatch:
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes cmake ninja-build build-essential
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.10.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Configure and build launcher
+        run: |
+          set -euo pipefail
+          cmake -S droiddeck-launcher -B build-launcher \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
+          cmake --build build-launcher --parallel
+          file build-launcher/kyty_droiddeck_launcher
