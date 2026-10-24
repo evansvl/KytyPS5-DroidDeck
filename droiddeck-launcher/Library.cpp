@@ -1,5 +1,6 @@
 #include "Library.h"
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 
@@ -56,7 +57,7 @@ static GameEntry folderEntry(const QString &directory)
     game.target = info.absoluteFilePath();
     game.title = info.fileName().isEmpty() ? game.target : info.fileName();
     const QString icon = QDir(game.target).filePath(QStringLiteral("sce_sys/icon0.png"));
-    if (QFileInfo::isFile(icon)) game.icon = icon;
+    if (QFileInfo(icon).isFile()) game.icon = icon;
     return game;
 }
 
