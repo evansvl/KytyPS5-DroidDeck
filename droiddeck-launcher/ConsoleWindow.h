@@ -21,6 +21,21 @@ class QStackedWidget;
 class QTimer;
 class QVBoxLayout;
 
+template <typename T>
+class IntSizedList
+{
+public:
+    void clear() { m_items.clear(); }
+    void push_back(const T &value) { m_items.push_back(value); }
+    bool isEmpty() const { return m_items.isEmpty(); }
+    int size() const { return static_cast<int>(m_items.size()); }
+    const T &at(int index) const { return m_items.at(index); }
+    T &at(int index) { return m_items[index]; }
+
+private:
+    QList<T> m_items;
+};
+
 class ConsoleWindow final : public QMainWindow
 {
 public:
@@ -86,7 +101,7 @@ private:
     QScrollArea *m_libraryScroll = nullptr;
     QWidget *m_libraryContainer = nullptr;
     QHBoxLayout *m_libraryStrip = nullptr;
-    QList<QPushButton *> m_libraryButtons;
+    IntSizedList<QPushButton *> m_libraryButtons;
     QList<GameEntry> m_games;
 
     QLabel *m_heroArt = nullptr;
