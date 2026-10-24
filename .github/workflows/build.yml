@@ -148,7 +148,7 @@ jobs:
           cmake -S kyty-source -B build-kyty \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DKYTY_BUILD_ORIGIN=DroidDeck \
+            -DKYTY_BUILD_ORIGIN=Fork \
             -DKYTY_BUILD_REPOSITORY="$GITHUB_REPOSITORY" \
             -DKYTY_RELEASE_TAG="${TAG}-droiddeck-fex" \
             -DCMAKE_C_COMPILER=clang \
