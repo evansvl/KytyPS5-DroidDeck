@@ -4,12 +4,33 @@
 #include "Library.h"
 #include "Settings.h"
 
+#include <QList>
 #include <QMainWindow>
 #include <QSettings>
 #include <QStringList>
 
+#include <initializer_list>
 #include <memory>
 #include <sys/types.h>
+
+template <typename T>
+class IntList final : public QList<T>
+{
+public:
+    using QList<T>::QList;
+
+    IntList &operator=(std::initializer_list<T> values)
+    {
+        this->clear();
+        for (const T &value : values) this->append(value);
+        return *this;
+    }
+
+    int size() const noexcept
+    {
+        return static_cast<int>(QList<T>::size());
+    }
+};
 
 class QBoxLayout;
 class QFrame;
@@ -75,7 +96,7 @@ private:
     QScrollArea *m_libraryScroll = nullptr;
     QWidget *m_libraryContainer = nullptr;
     QHBoxLayout *m_libraryStrip = nullptr;
-    QList<QPushButton *> m_libraryTiles;
+    IntList<QPushButton *> m_libraryTiles;
     QList<GameEntry> m_games;
     int m_libraryIndex = 0;
 
@@ -85,8 +106,8 @@ private:
     QScrollArea *m_settingsScroll = nullptr;
     QWidget *m_settingsRowsWidget = nullptr;
     QVBoxLayout *m_settingsRows = nullptr;
-    QList<QPushButton *> m_settingButtons;
-    QList<QList<SettingSpec>> m_settingSections;
+    IntList<QPushButton *> m_settingButtons;
+    IntList<QList<SettingSpec>> m_settingSections;
     int m_settingSection = 0;
     int m_settingIndex = 0;
 
