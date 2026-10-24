@@ -9,8 +9,8 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(kyty_droiddeck_launcher
     main.cpp
-    MainWindow.cpp
-    MainWindow.h
+    ConsoleWindow.cpp
+    ConsoleWindow.h
     Gamepad.cpp
     Gamepad.h
     Library.cpp
