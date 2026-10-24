@@ -1,10 +1,10 @@
 # KytyPS5 for DroidDeck
 
-A DroidDeck-focused distribution of [KytyPS5](https://github.com/KytyPS5/KytyPS5) with a custom controller/touch frontend for Android.
+A DroidDeck-focused distribution of [KytyPS5](https://github.com/KytyPS5/KytyPS5) with a custom controller-first frontend for Android handhelds.
 
-This repository packages the official KytyPS5 Linux x86-64 release as a DroidDeck-compatible AppImage and replaces the normal desktop launcher workflow with a frontend designed for handheld use.
+This repository packages KytyPS5 as a DroidDeck-compatible x86-64 AppImage and replaces the desktop-oriented launcher workflow with a console-style interface designed to be operated from a gamepad.
 
-> KytyPS5 is the emulator core. The upstream `kyty_launcher` GUI is not required for normal use in this project.
+> KytyPS5 is used as the emulator core. The upstream `kyty_launcher` GUI is not part of the normal user flow.
 
 ## Projects
 
@@ -20,12 +20,12 @@ FEX x86-64 translation
         ↓
 KytyPS5 DroidDeck Frontend
         ↓
-kyty_emulator
+patched kyty_emulator core
         ↓
 PS5 game / homebrew
 ```
 
-The custom frontend owns the library, game picker, settings, controller navigation and launch diagnostics. It builds the same command-line options that the upstream KytyPS5 launcher normally passes to `kyty_emulator`.
+The custom frontend owns the game library, file browser, settings, controller navigation and launch diagnostics. KytyPS5 provides the actual PS5 translation/emulation core.
 
 ## Installation
 
@@ -38,23 +38,31 @@ Desktop
 → evansvl/KytyPS5-DroidDeck
 ```
 
-DroidDeck will import the latest compatible x86-64 AppImage release.
+DroidDeck imports the latest compatible x86-64 AppImage release.
+
+## Console-style UI
+
+The frontend uses a controller-first interaction model inspired by open-source console frontends such as Pegasus.
+
+The Library uses a horizontal game carousel. The entire game card is the focus target, not a small button inside it. The focused card receives a bright cyan outline and the large hero panel above it immediately updates with the selected game's artwork, title and path.
+
+Settings use full-row focus highlighting so it is always clear which option will be changed.
+
+The visual language is deliberately PS5/emulator-oriented: dark navy surfaces, electric blue/cyan focus states, a `K5` launcher mark, Kyty/Vulkan core status and persistent gamepad button hints.
 
 ## Controller navigation
 
-The frontend is intended to be fully usable without a mouse.
-
 ```text
 D-pad / left stick  Navigate
-A                   Confirm / activate
+A                   Launch / confirm / activate
 B                   Back / return to Library
-X                   Next value / toggle focused setting
+X                   Game settings / next focused value
 Y                   Add Game
 LB / RB             Previous / next section
 View / Select       Refresh library
 ```
 
-The settings UI is split into:
+Sections:
 
 - **Library**
 - **Graphics**
@@ -63,80 +71,43 @@ The settings UI is split into:
 - **Debug**
 - **Expert**
 
-## KytyPS5 settings
+## Single-window design
 
-The frontend exposes KytyPS5 emulator settings directly instead of opening the upstream desktop GUI.
+DroidDeck can behave poorly when desktop applications create extra top-level windows. For that reason the frontend intentionally keeps normal interaction inside one `QMainWindow`.
 
-Current settings include:
+The following are internal pages of the same launcher window:
 
-### Graphics
+- game library
+- settings
+- Add Game browser
+- ZIP import status
+- launch errors
+- Kyty core logs
 
-- resolution: 720p / 1080p / 1440p / 4K
-- Vulkan present mode
-- GPU index / automatic GPU selection
-- fullscreen
-- HDR
-- cursor hiding
-- virtual vblank frequency
-- performance overlay
-- linear image readback
-- tiled image readback
-- raw image synchronization
-- tessellation
-- occlusion queries
+The frontend does **not** use `QFileDialog` or `QMessageBox` for its normal workflows.
 
-### System
-
-- local user name
-- local user ID
-- microphone device
-- console language
-- network-connected mode
-- trophy notifications
-- trophy notification duration
-- skip notice screen
-- add-ons / DLC directory
-
-### Controller
-
-- DualSense lightbar color
-- controller speaker volume
-- vibration intensity
-- keyboard player assignment
-- custom `--keymap` mappings
-
-### Debug
-
-- Vulkan validation
-- shader validation
-- shader optimization mode
-- shader logging destination
-- shader logging folder
-- command-buffer dumps
-- guest printf output
-- Tracy profiler
-- RenderDoc
-- AMD CPU compatibility patch
-
-### Expert
-
-Additional `kyty_emulator` CLI switches are available for workflows that need them, including GPU-assisted validation, SPIR-V debug printf, graphics debug dumps, PlayGo fallback, VR mode and splash control.
-
-Settings are saved persistently by the frontend and converted directly to `kyty_emulator` arguments when a game is launched.
+The only separate window expected during normal use is the actual game window created by the emulator core after a successful launch.
 
 ## Adding games
 
-Press **Y** or select **Add Game** in the Library.
+Press **Y** or focus the **+ Add Game** card.
 
-The frontend uses a Qt non-native picker because desktop portal/FUSE pickers are not reliable inside DroidDeck.
+A built-in file browser opens inside the launcher itself. It starts in Android internal storage and can be operated entirely with the controller.
 
-You can select:
+```text
+A   Open folder / add selected game
+B   Parent folder / back
+X   Add current folder when eboot.bin is present
+Y   Jump to Internal storage root
+```
 
-- a folder containing a PS5 game / `eboot.bin`
+Supported inputs:
+
+- game folder containing `eboot.bin`
 - `eboot.bin`
-- an ELF
-- a Kyty `.zar` archive
-- a `.zip` archive
+- ELF
+- Kyty `.zar`
+- `.zip`
 
 ZIP archives are extracted into:
 
@@ -144,15 +115,13 @@ ZIP archives are extracted into:
 /storage/emulated/0/KytyPS5
 ```
 
-which is shown by Android file managers as:
+Android file managers display this as:
 
 ```text
 Internal storage/KytyPS5
 ```
 
-You can also place games there manually. The frontend recursively scans the directory for `eboot.bin`.
-
-Example:
+Games can also be placed there manually:
 
 ```text
 Internal storage/
@@ -164,36 +133,98 @@ Internal storage/
         └── ...
 ```
 
-If `sce_sys/icon0.png` exists, it is used as the library artwork.
+`sce_sys/icon0.png` is used as library artwork when present.
 
-External game folders/files selected through **Add Game** are remembered and do not need to be copied into the default library folder.
+External game folders and supported direct files added through the built-in browser are remembered persistently.
 
-## Launching
+## KytyPS5 settings
 
-Selecting **Play** starts the official upstream `kyty_emulator` directly.
+The frontend exposes Kyty emulator settings directly and converts them to `kyty_emulator` command-line arguments.
 
-Conceptually:
+### Graphics
 
-```bash
-kyty_emulator \
-  --game "/path/to/game" \
-  --screen-width 1280 \
-  --screen-height 720 \
-  --present-mode Mailbox \
-  ...
-```
+- resolution: 720p / 1080p / 1440p / 4K
+- Vulkan present mode
+- GPU index / automatic GPU selection
+- fullscreen
+- HDR
+- cursor hiding
+- virtual VBlank frequency
+- performance overlay
+- linear/tiled image readback
+- raw image synchronization
+- tessellation
+- occlusion queries
 
-The frontend captures stdout/stderr. If the emulator exits or crashes immediately, the error and log are shown in the frontend.
+### System
 
-Logs are stored under:
+- user name and user ID
+- console language
+- microphone device
+- network-connected mode
+- trophy notifications and duration
+- skip notice screen
+- add-ons / DLC path
+
+### Controller
+
+- DualSense lightbar color
+- speaker volume
+- vibration intensity
+- keyboard player assignment
+- custom `--keymap` mappings
+
+### Debug / Expert
+
+- Vulkan and shader validation
+- shader optimization and logging
+- command-buffer dumps
+- guest printf output
+- Tracy profiler
+- RenderDoc
+- AMD CPU compatibility patch
+- GPU-assisted validation
+- SPIR-V debug printf
+- graphics debug dumps
+- PlayGo fallback
+- VR and splash options
+
+Settings are stored persistently.
+
+## Launch diagnostics
+
+The frontend starts `kyty_emulator` directly and captures stdout/stderr.
+
+If the core exits early, the launcher returns to an internal error page in the same window and shows the captured log there.
+
+Logs are also stored under:
 
 ```text
 ~/.local/share/KytyPS5-DroidDeck/logs
 ```
 
+## DroidDeck / FEX memory patch
+
+The stock Linux KytyPS5 core creates a sparse 13.5 GiB `memfd` for PS5 direct memory and then maps the entire backing store again as one contiguous writable alias.
+
+That extra 13.5 GiB alias fails when the x86-64 Kyty process is running through FEX on DroidDeck, producing an error similar to:
+
+```text
+could not reserve 13824 MB for guest direct memory
+```
+
+DroidDeck packaging revision r10 introduces an experimental core patch for this environment:
+
+- keep the original sparse `memfd` backing store;
+- do not create the extra contiguous 13.5 GiB writable alias;
+- perform CPU-side backing reads/writes using `pread` / `pwrite`;
+- retain Kyty's real fixed guest mappings to the same `memfd`.
+
+This patch is specifically intended to get past the FEX address-space failure. It is experimental and may expose additional Kyty/FEX compatibility issues after the original blocker is removed.
+
 ## Android storage shortcuts
 
-The AppImage startup script also exposes:
+The AppImage also exposes:
 
 ```text
 /root/PhoneStorage  → /storage/emulated/0
@@ -201,38 +232,38 @@ The AppImage startup script also exposes:
 /root/Games         → /storage/emulated/0/KytyPS5
 ```
 
-The custom frontend normally accesses Android storage directly, so users do not need to browse Linux root paths.
+Normal users do not need to interact with these Linux paths because the custom browser accesses Android storage directly.
 
 ## Updates
 
-The workflow tracks official KytyPS5 Linux x86-64 releases and creates DroidDeck packaging releases automatically.
+The workflow tracks official KytyPS5 releases and creates DroidDeck packaging revisions automatically.
 
-Packaging revisions use tags such as:
+Tags use the form:
 
 ```text
-KytyPS5-2026-10-23-9dcff95-droiddeck.8
+KytyPS5-<upstream release>-droiddeck.<revision>
 ```
 
-This allows frontend and DroidDeck-specific fixes to ship without waiting for a new upstream KytyPS5 build.
+DroidDeck-specific frontend and core compatibility fixes can therefore ship without waiting for another upstream release.
 
 ## Compatibility
 
-This project is experimental. KytyPS5 was not originally designed to run through FEX on Android.
+This project is experimental. Running a PS5 translation layer through an additional x86-64 → ARM64 FEX layer introduces constraints that do not exist on normal desktop Linux.
 
-Known classes of problems include:
+Potential blockers include:
 
-- x86-64 → ARM64 translation issues
-- guest virtual-memory/address-space reservation failures
-- Vulkan/Turnip compatibility
-- unsupported Vulkan extensions/features
+- guest virtual-memory/address-space mappings
+- FEX syscall and memory semantics
+- Vulkan / Turnip compatibility
+- unsupported Vulkan extensions or features
 - individual game compatibility
 - performance and thermal limits
 
-A successful AppImage launch does not guarantee that a PS5 title will boot.
+A successful AppImage launch does not guarantee that every PS5 title will boot.
 
 ## Legal
 
-This repository does not provide PlayStation 5 games, firmware, keys, copyrighted Sony system software, or other copyrighted game content.
+This repository does not provide PlayStation 5 games, firmware, keys, copyrighted Sony system software or other copyrighted game content.
 
 Use only content that you are legally entitled to use.
 
