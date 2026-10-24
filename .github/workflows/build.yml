@@ -20,7 +20,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "10"
+      PACKAGE_REV: "11"
 
     steps:
       - name: Checkout
@@ -312,18 +312,21 @@ jobs:
           cat > notes.md <<EOF
           KytyPS5 for DroidDeck/FEX — packaging revision r$PACKAGE_REV.
 
-          r10 keeps the r9 single-window controller UI and adds an experimental Kyty core patch for FEX:
+          r11 introduces a DroidDeck-safe launcher layout:
+          - removes the left desktop sidebar that was hidden under the virtual D-pad
+          - moves Library / Graphics / System / Controller / Debug / Expert to top tabs controlled by LB/RB
+          - keeps primary content in the center safe area between D-pad and ABXY overlays
+          - removes bottom status/hint bars from the visible work area
+          - significantly increases settings, browser and error-page typography
+          - fixes the error page that previously gave the panel only about one third of the window width
+          - moves Back above the core log so it is not covered by DroidDeck's bottom overlay
+          - keeps Add Game and all normal error flows inside the same Qt window
+
+          The experimental FEX Kyty core patch remains enabled:
           - removes the extra contiguous 13.5 GiB writable direct-memory alias
           - keeps the sparse memfd backing store
           - uses pread/pwrite for CPU-side backing reads and writes
           - keeps real PS5 guest mappings on the same memfd
-
-          Frontend includes:
-          - strongly highlighted focused game card and selected-game hero panel
-          - controller-first Library / Graphics / System / Controller / Debug / Expert UI
-          - built-in Add Game browser inside the same launcher window
-          - no QFileDialog or QMessageBox windows in normal frontend flows
-          - in-window core error/log page
 
           Upstream release: $TAG
           SHA-256: $SHA
