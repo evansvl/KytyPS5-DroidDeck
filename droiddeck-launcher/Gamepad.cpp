@@ -120,10 +120,13 @@ void EvdevGamepad::readEvents(Device &device)
         if (size == static_cast<ssize_t>(sizeof(event))) {
             if (event.type == EV_KEY && event.value == 1) {
                 switch (event.code) {
-                case BTN_SOUTH: emitAction(PadAction::Confirm); break;
-                case BTN_EAST: emitAction(PadAction::Back); break;
-                case BTN_NORTH: emitAction(PadAction::AddGame); break;
-                case BTN_WEST: emitAction(PadAction::Settings); break;
+                case BTN_SOUTH:  emitAction(PadAction::Confirm); break;      // A
+                case BTN_EAST:   emitAction(PadAction::Back); break;         // B
+                case BTN_WEST:   emitAction(PadAction::NextValue); break;    // X
+                case BTN_NORTH:  emitAction(PadAction::AddGame); break;      // Y
+                case BTN_TL:     emitAction(PadAction::PrevSection); break;  // LB
+                case BTN_TR:     emitAction(PadAction::NextSection); break;  // RB
+                case BTN_SELECT: emitAction(PadAction::Refresh); break;      // View
                 default: break;
                 }
             } else if (event.type == EV_ABS) {
