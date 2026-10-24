@@ -153,7 +153,7 @@ jobs:
             -DKYTY_RELEASE_TAG="${TAG}-droiddeck-fex" \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
-            -DCMAKE_PREFIX_PATH="$Qt6_DIR"
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
 
           cmake --build build-kyty \
             --target kyty_emulator \
@@ -173,7 +173,7 @@ jobs:
           cmake -S droiddeck-launcher -B build-launcher \
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$Qt6_DIR"
+            -DCMAKE_PREFIX_PATH="$QT_ROOT_DIR"
           cmake --build build-launcher --parallel
           test -x build-launcher/kyty_droiddeck_launcher
           file build-launcher/kyty_droiddeck_launcher
