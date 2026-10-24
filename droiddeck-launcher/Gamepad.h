@@ -15,8 +15,11 @@ enum class PadAction {
     Right,
     Confirm,
     Back,
+    NextValue,
     AddGame,
-    Settings,
+    PrevSection,
+    NextSection,
+    Refresh,
 };
 
 class EvdevGamepad final : public QObject
