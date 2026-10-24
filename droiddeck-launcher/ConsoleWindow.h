@@ -11,6 +11,7 @@
 #include <memory>
 #include <sys/types.h>
 
+class QHBoxLayout;
 class QLabel;
 class QListWidget;
 class QPlainTextEdit;
