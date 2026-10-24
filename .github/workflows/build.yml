@@ -111,8 +111,38 @@ jobs:
           test -x upstream/kyty_emulator
           file upstream/kyty_emulator
 
-      - name: Checkout KytyPS5 source
+      - name: Reuse previously built patched core
+        id: reuse_core
         if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.upstream.outputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREVIOUS_TAG="${TAG}-droiddeck.10"
+          rm -rf cached-core squashfs-root
+
+          if gh release view "$PREVIOUS_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Found patched core release: $PREVIOUS_TAG"
+            gh release download "$PREVIOUS_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --pattern "KytyPS5-DroidDeck-x86_64.AppImage" \
+              --output cached-core.AppImage
+            chmod +x cached-core.AppImage
+            ./cached-core.AppImage --appimage-extract >/dev/null
+            test -x squashfs-root/usr/lib/kytyps5/kyty_emulator
+            cp squashfs-root/usr/lib/kytyps5/kyty_emulator upstream/kyty_emulator
+            chmod +x upstream/kyty_emulator
+            file upstream/kyty_emulator
+            echo "reused=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No matching r10 core for $TAG; source build required."
+            echo "reused=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout KytyPS5 source
+        if: steps.existing.outputs.exists != 'true' && steps.reuse_core.outputs.reused != 'true'
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
         run: |
@@ -126,7 +156,7 @@ jobs:
             kyty-source
 
       - name: Apply DroidDeck FEX memory patch
-        if: steps.existing.outputs.exists != 'true'
+        if: steps.existing.outputs.exists != 'true' && steps.reuse_core.outputs.reused != 'true'
         run: |
           set -euo pipefail
           python3 patches/patch_fex_sparse_backing.py \
@@ -138,7 +168,7 @@ jobs:
             kyty-source/src/kernel/memoryAddressSpace.inc
 
       - name: Build patched KytyPS5 core
-        if: steps.existing.outputs.exists != 'true'
+        if: steps.existing.outputs.exists != 'true' && steps.reuse_core.outputs.reused != 'true'
         env:
           TAG: ${{ steps.upstream.outputs.tag }}
         shell: bash
