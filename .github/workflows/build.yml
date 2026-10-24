@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: kytyps5-appimage
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -20,7 +20,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "11"
+      PACKAGE_REV: "12"
 
     steps:
       - name: Checkout
@@ -166,7 +166,7 @@ jobs:
           cp build-kyty/kyty_emulator upstream/kyty_emulator
           chmod +x upstream/kyty_emulator
 
-      - name: Build DroidDeck frontend
+      - name: Build Big Picture frontend
         if: steps.existing.outputs.exists != 'true'
         run: |
           set -euo pipefail
@@ -239,7 +239,7 @@ jobs:
           [Desktop Entry]
           Type=Application
           Name=KytyPS5 DroidDeck
-          Comment=Controller-first PS5 frontend powered by KytyPS5
+          Comment=Big Picture PS5 frontend powered by KytyPS5
           Exec=kyty_droiddeck_launcher
           Icon=kytyps5
           Terminal=false
@@ -255,7 +255,7 @@ jobs:
                 <stop offset="1" stop-color="#8f55ff"/>
               </linearGradient>
             </defs>
-            <rect width="512" height="512" rx="112" fill="#070b12"/>
+            <rect width="512" height="512" rx="112" fill="#05080e"/>
             <rect x="62" y="62" width="388" height="388" rx="96" fill="url(#g)"/>
             <text x="256" y="302" text-anchor="middle" font-family="sans-serif" font-size="160" font-weight="900" fill="white">K5</text>
           </svg>
@@ -312,15 +312,17 @@ jobs:
           cat > notes.md <<EOF
           KytyPS5 for DroidDeck/FEX — packaging revision r$PACKAGE_REV.
 
-          r11 introduces a DroidDeck-safe launcher layout:
-          - removes the left desktop sidebar that was hidden under the virtual D-pad
-          - moves Library / Graphics / System / Controller / Debug / Expert to top tabs controlled by LB/RB
-          - keeps primary content in the center safe area between D-pad and ABXY overlays
-          - removes bottom status/hint bars from the visible work area
-          - significantly increases settings, browser and error-page typography
-          - fixes the error page that previously gave the panel only about one third of the window width
-          - moves Back above the core log so it is not covered by DroidDeck's bottom overlay
-          - keeps Add Game and all normal error flows inside the same Qt window
+          r12 replaces the old desktop-style launcher with a new Big Picture frontend:
+          - true frameless fullscreen launcher using the current DroidDeck screen geometry
+          - 1280x720 / 720p is the baseline UI size; typography, art and game tiles scale with the actual display height
+          - fullscreen is asserted again after the window appears and whenever Kyty returns to the frontend
+          - large hero panel plus horizontal controller-first game carousel
+          - strong cyan focus state so the selected game or setting is always obvious
+          - fullscreen settings pages with Graphics / System / Controller / Debug / Expert sections
+          - built-in Add Game browser inside the same window
+          - built-in text editor for path and mapping settings; no QFileDialog or QMessageBox required
+          - compact in-window error page with the raw core log hidden until X is pressed
+          - controller flow: D-pad/left stick navigate, A select/launch, B back, X settings/change value, Y add game, LB/RB switch settings sections
 
           The experimental FEX Kyty core patch remains enabled:
           - removes the extra contiguous 13.5 GiB writable direct-memory alias
