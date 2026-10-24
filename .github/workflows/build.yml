@@ -20,7 +20,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "7"
+      PACKAGE_REV: "8"
 
     steps:
       - name: Checkout
@@ -59,7 +59,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build qt6-base-dev unzip \
+            build-essential cmake ninja-build qt6-base-dev busybox-static \
             libopengl0 libglx0 libgl1 libglvnd0
 
       - name: Download KytyPS5
@@ -71,16 +71,17 @@ jobs:
           curl -fL --retry 5 --retry-delay 3 -o kyty.tar.gz "$ASSET_URL"
           mkdir upstream
           tar -xzf kyty.tar.gz -C upstream
-          test -x upstream/kyty_launcher
           test -x upstream/kyty_emulator
+          file upstream/kyty_emulator
 
-      - name: Build DroidDeck launcher
+      - name: Build DroidDeck frontend
         if: steps.existing.outputs.exists != 'true'
         run: |
           set -euo pipefail
           cmake -S droiddeck-launcher -B build-launcher -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build-launcher --parallel
           test -x build-launcher/kyty_droiddeck_launcher
+          file build-launcher/kyty_droiddeck_launcher
 
       - name: Create AppDir
         if: steps.existing.outputs.exists != 'true'
@@ -91,8 +92,14 @@ jobs:
           mkdir -p AppDir/usr/lib/kytyps5/lib AppDir/usr/bin
           cp -a upstream/. AppDir/usr/lib/kytyps5/
           cp build-launcher/kyty_droiddeck_launcher AppDir/usr/lib/kytyps5/
-          cp /usr/bin/unzip AppDir/usr/bin/unzip
-          chmod +x AppDir/usr/lib/kytyps5/kyty_droiddeck_launcher AppDir/usr/lib/kytyps5/kyty_launcher AppDir/usr/lib/kytyps5/kyty_emulator AppDir/usr/bin/unzip
+
+          cp /usr/bin/busybox AppDir/usr/bin/busybox
+          ln -s busybox AppDir/usr/bin/unzip
+
+          chmod +x \
+            AppDir/usr/lib/kytyps5/kyty_droiddeck_launcher \
+            AppDir/usr/lib/kytyps5/kyty_emulator \
+            AppDir/usr/bin/busybox
 
           copy_lib() {
             local lib="$1" src
@@ -106,13 +113,6 @@ jobs:
           copy_lib libGLX.so.0
           copy_lib libGL.so.1
 
-          cat > qprocess-fork.c <<'EOF'
-          #include <sys/types.h>
-          __attribute__((visibility("default"))) pid_t __interceptor_vfork(void) { return -1; }
-          EOF
-          gcc -shared -fPIC -O2 -Wl,-soname,libqprocess-fork.so \
-            -o AppDir/usr/lib/kytyps5/lib/libqprocess-fork.so qprocess-fork.c
-
           cat > AppDir/AppRun <<'EOF'
           #!/bin/bash
           set -u
@@ -121,7 +121,6 @@ jobs:
           export KYTY_DIR
           export KYTY_UNZIP="$APPDIR/usr/bin/unzip"
           export LD_LIBRARY_PATH="$KYTY_DIR:$KYTY_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-          export LD_PRELOAD="$KYTY_DIR/lib/libqprocess-fork.so${LD_PRELOAD:+:$LD_PRELOAD}"
 
           [[ -d "$KYTY_DIR/plugins" ]] && export QT_PLUGIN_PATH="$KYTY_DIR/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
           [[ -d "$KYTY_DIR/lib/plugins" ]] && export QT_PLUGIN_PATH="$KYTY_DIR/lib/plugins${QT_PLUGIN_PATH:+:$QT_PLUGIN_PATH}"
@@ -144,8 +143,8 @@ jobs:
           cat > AppDir/kytyps5.desktop <<'EOF'
           [Desktop Entry]
           Type=Application
-          Name=KytyPS5
-          Comment=PlayStation 5 emulator frontend for DroidDeck
+          Name=KytyPS5 DroidDeck
+          Comment=Controller-first PlayStation 5 frontend powered by KytyPS5
           Exec=kyty_droiddeck_launcher
           Icon=kytyps5
           Terminal=false
@@ -212,8 +211,12 @@ jobs:
           cat > notes.md <<EOF
           KytyPS5 for DroidDeck/FEX — packaging revision r$PACKAGE_REV.
 
+          r8 replaces the upstream desktop launcher in normal use. KytyPS5 is used as the emulator core.
+
           Includes:
-          - custom touch/gamepad launcher
+          - controller-first Library / Graphics / System / Controller / Debug / Expert UI
+          - A/B/X/Y + D-pad/stick + LB/RB navigation
+          - full KytyPS5 launcher settings mapped directly to kyty_emulator CLI
           - Add Game picker using a non-native Qt dialog
           - persistent external game folders/files
           - ZIP import into /storage/emulated/0/KytyPS5
