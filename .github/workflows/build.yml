@@ -20,7 +20,7 @@ jobs:
     env:
       UPSTREAM_REPO: KytyPS5/KytyPS5
       OUTPUT_NAME: KytyPS5-DroidDeck-x86_64.AppImage
-      PACKAGE_REV: "8"
+      PACKAGE_REV: "9"
 
     steps:
       - name: Checkout
@@ -144,7 +144,7 @@ jobs:
           [Desktop Entry]
           Type=Application
           Name=KytyPS5 DroidDeck
-          Comment=Controller-first PlayStation 5 frontend powered by KytyPS5
+          Comment=Controller-first PS5 frontend powered by KytyPS5
           Exec=kyty_droiddeck_launcher
           Icon=kytyps5
           Terminal=false
@@ -153,10 +153,16 @@ jobs:
 
           cat > AppDir/kytyps5.svg <<'EOF'
           <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-            <rect width="512" height="512" rx="96" fill="#15171c"/>
-            <rect x="48" y="48" width="416" height="416" rx="72" fill="#20242c"/>
-            <text x="256" y="235" text-anchor="middle" font-family="sans-serif" font-size="84" font-weight="700" fill="white">Kyty</text>
-            <text x="256" y="330" text-anchor="middle" font-family="sans-serif" font-size="72" font-weight="700" fill="white">PS5</text>
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#1769ff"/>
+                <stop offset="0.6" stop-color="#315cff"/>
+                <stop offset="1" stop-color="#8f55ff"/>
+              </linearGradient>
+            </defs>
+            <rect width="512" height="512" rx="112" fill="#070b12"/>
+            <rect x="62" y="62" width="388" height="388" rx="96" fill="url(#g)"/>
+            <text x="256" y="302" text-anchor="middle" font-family="sans-serif" font-size="160" font-weight="900" fill="white">K5</text>
           </svg>
           EOF
           ln -sf kytyps5.svg AppDir/.DirIcon
@@ -211,17 +217,19 @@ jobs:
           cat > notes.md <<EOF
           KytyPS5 for DroidDeck/FEX — packaging revision r$PACKAGE_REV.
 
-          r8 replaces the upstream desktop launcher in normal use. KytyPS5 is used as the emulator core.
+          r9 introduces a console-style, controller-first frontend while KytyPS5 remains the emulator core.
 
           Includes:
+          - clearly highlighted game-card focus and selected-game hero panel
           - controller-first Library / Graphics / System / Controller / Debug / Expert UI
+          - full-row focus highlighting for settings
           - A/B/X/Y + D-pad/stick + LB/RB navigation
-          - full KytyPS5 launcher settings mapped directly to kyty_emulator CLI
-          - Add Game picker using a non-native Qt dialog
+          - built-in Add Game browser inside the same launcher window
+          - no QFileDialog or QMessageBox windows in normal frontend flows
           - persistent external game folders/files
           - ZIP import into /storage/emulated/0/KytyPS5
-          - direct .zar/.elf support
-          - launch diagnostics
+          - direct .zar/.elf/eboot.bin support
+          - in-window Kyty core error/log page
 
           Upstream release: $TAG
           SHA-256: $SHA
