@@ -1,4 +1,4 @@
-#include "MainWindow.h"
+#include "ConsoleWindow.h"
 
 #include <QApplication>
 
@@ -8,7 +8,7 @@ int main(int argc, char **argv)
     QApplication::setApplicationName(QStringLiteral("KytyPS5 DroidDeck"));
     QApplication::setOrganizationName(QStringLiteral("evansvl"));
 
-    LauncherWindow window;
+    ConsoleWindow window;
     window.show();
     return app.exec();
 }
